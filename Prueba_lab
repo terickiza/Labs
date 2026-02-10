@@ -1,0 +1,8 @@
+curl -i -X POST "http://IP_PUBLICA:5000/DevOps" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "This is a test",
+    "to": "Juan Perez",
+    "from": "Rita Asturia",
+    "timeToLifeSec": 45
+  }'
