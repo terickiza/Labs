@@ -1,4 +1,66 @@
-curl -i -X POST "http:/http://20.121.1.123:5000/" \
+#INSTALACION DOCKER
+mkdir ~/mi-imagen-nginx
+cp ~/holaweb/index.html ~/mi-imagen-nginx/
+
+cat > ~/mi-imagen-nginx/Dockerfile <<EOF
+FROM nginx:alpine
+COPY index.html /usr/share/nginx/html/index.html
+EXPOSE 80
+EOF
+#SERVICIO
+cat > ~/holaweb/index.html <<'EOF'
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Hola Mundo</title>
+</head>
+<body>
+  <h1>Hola Celula Cloud desde Docker + NGINX</h1>
+  <p>Despliegue exitoso</p>
+</body>
+</html>
+EOF
+#CONTENEDOR NGINX
+docker run -d \
+  --name nginx-hola \
+  -p 80:80 \
+  -v ~/holaweb:/usr/share/nginx/html:ro \
+  nginx:alpine
+#CONTENEDOR NGINX - Imagen
+mkdir -p ~/mi-imagen-nginx
+cd ~/mi-imagen-nginx
+cp ~/holaweb/index.html ~/mi-imagen-nginx/
+	#generar dockerfile-
+cat > Dockerfile <<'EOF'
+FROM nginx:alpine
+COPY index.html /usr/share/nginx/html/index.html
+EXPOSE 80
+EOF
+	#contruir imagen-
+docker build -t hola-mundo-nginx:1.0 .
+docker save -o hola-mundo-nginx.tar hola-mundo-nginx:1.0
+#CARGAR IMAGEN EXTERNA
+sudo docker load -i microservicio.tar
+	#Cargar Imagen
+docker run -d \
+  --name microservicio \
+  -p 5000:5000 \
+  microservicio-devops:v1
+#INGRESAR AL CONTENEDOR
+sudo docker exec -it "name" bash
+#Imagen
+https://1drv.ms/u/c/2fe4aeefdbb3761d/IQAhdK538kmgTbddasaKoQxEAXghcqbLlmXBmzxiqINEVzE
+
+########
+sudo curl http://20.121.1.123:80
+sudo curl http://20.121.1.123:5000
+sudo curl localhost:80
+sudo curl localhost:5000
+
+
+##TEST##
+curl -i -X POST "http://localhost:5000/DevOps" \
   -H "Content-Type: application/json" \
   -d '{
     "message": "This is a test",
@@ -6,3 +68,15 @@ curl -i -X POST "http:/http://20.121.1.123:5000/" \
     "from": "Rita Asturia",
     "timeToLifeSec": 45
   }'
+ 
+
+curl -i -X POST "http://localhost:5000/DevOps" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "This is a test",
+    "to": "Juan Perez",
+    "from": "Rita Asturia",
+    "timeToLifeSec": 45
+  }'
+ 
+  
