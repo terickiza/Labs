@@ -2,7 +2,7 @@
 
 ## Descripción
 
-**TCS Cloud Project** es una solución integral de infraestructura en la nube para Azure que implementa una arquitectura moderna basada en **Kubernetes (AKS)**, **redes virtuales** y una **aplicación microservices**.
+**TCS Cloud Project** es una solución integral de infraestructura en la nube para Azure que implementa una arquitectura moderna basada en **Azure Container Registry (ACR)**, **Kubernetes (AKS)**, **redes virtuales** y una **aplicación microservices**.
 
 El proyecto automatiza el despliegue de todos los componentes necesarios utilizando **Terraform** como Infrastructure as Code (IaC) y proporciona una aplicación Flask REST API containerizada con Docker.
 
@@ -34,6 +34,14 @@ tcs_cloud_project/
 │   ├── variables.tf                 # Variables
 │   ├── outputs.tf                   # Salidas
 │   ├── providers.tf                 # Configuración de proveedores
+│   ├── terraform.tfvars             # Valores de variables
+│   └── README.md                    # Documentación
+│
+├── 4. ACR/                          # Azure Container Registry (Terraform)
+│   ├── main.tf                      # Configuración de ACR
+│   ├── variables.tf                 # Variables
+│   ├── outputs.tf                   # Salidas (credenciales, URLs)
+│   ├── versions.tf                  # Versiones de providers
 │   ├── terraform.tfvars             # Valores de variables
 │   └── README.md                    # Documentación
 │
@@ -91,7 +99,17 @@ terraform apply tfplan
 cd ..
 ```
 
-### Paso 4: Desplegar AKS (3. AKS)
+### Paso 4: Desplegar ACR (4. ACR)
+```bash
+cd "4. ACR"
+terraform init
+terraform plan -out=acr.tfplan
+terraform apply acr.tfplan
+# Guardar las credenciales mostradas en los outputs
+cd ..
+```
+
+### Paso 5: Desplegar AKS (3. AKS)
 ```bash
 cd "3. AKS"
 terraform init
@@ -100,20 +118,37 @@ terraform apply aks.tfplan
 cd ..
 ```
 
-### Paso 5: Obtener Credenciales de Kubernetes
+### Paso 6: Obtener Credenciales de Kubernetes
 ```bash
 az aks get-credentials --resource-group rg-cloud-lab --name aks-e08
 kubectl cluster-info
 ```
 
-### Paso 6: Desplegar Aplicación (1. App)
+### Paso 7: Construir y Subir Imagen al ACR
 ```bash
 cd "1. App"
+
+# Login al ACR
+az acr login --name <tu-acr-name>
+
+# Construir imagen
+docker build -t <tu-acr-name>.azurecr.io/flask-app:v1 .
+
+# Subir imagen al ACR
+docker push <tu-acr-name>.azurecr.io/flask-app:v1
+
+cd ..
+```
+
+### Paso 8: Desplegar Aplicación (1. App)
+```bash
+cd "1. App"
+# Actualizar deployment_ms01.yaml con la imagen del ACR
 kubectl apply -f deployment_ms01.yaml
 cd ..
 ```
 
-### Paso 7: Validar Despliegue
+### Paso 9: Validar Despliegue
 ```bash
 kubectl get pods
 kubectl get svc
@@ -128,8 +163,10 @@ kubectl get svc
 
 ```
 1. 2. Network     → Crear VNet y Subnet (Terraform)
-2. 3. AKS         → Crear cluster Kubernetes (Terraform)
-3. 1. App         → Desplegar aplicación (kubectl)
+2. 4. ACR         → Crear Azure Container Registry (Terraform)
+3. 3. AKS         → Crear cluster Kubernetes con integración ACR (Terraform)
+4. 1. App         → Construir y subir imagen Docker al ACR
+5. 1. App         → Desplegar aplicación en AKS (kubectl)
 ```
 
 ---
@@ -139,9 +176,10 @@ kubectl get svc
 **IMPORTANTE**: Destruir en orden INVERSO para evitar errores.
 
 ```
-1. 3. AKS         → Destruir cluster (terraform destroy) - PRIMERO
-2. 2. Network     → Destruir red (terraform destroy) - SEGUNDO
-3. 1. App         → Limpiar deployments (kubectl delete) - TERCERO
+1. 1. App         → Limpiar deployments (kubectl delete) - PRIMERO
+2. 3. AKS         → Destruir cluster (terraform destroy) - SEGUNDO
+3. 4. ACR         → Destruir registry (terraform destroy) - TERCERO
+4. 2. Network     → Destruir red (terraform destroy) - CUARTO
 ```
 
 ---
@@ -153,6 +191,7 @@ Para información específica y detallada, consulta los README en cada directori
 - **[1. App/README.md](1.%20App/README.md)** - Aplicación Flask, API REST, Docker, Kubernetes
 - **[2. Network/README.md](2.%20Network/README.md)** - Infraestructura de red, VNet, Subnet, Terraform
 - **[3. AKS/README.md](3.%20AKS/README.md)** - Cluster AKS, nodos, configuración, Terraform
+- **[4. ACR/README.md](4.%20ACR/README.md)** - Azure Container Registry, integración con AKS, Terraform
 
 ---
 
@@ -160,8 +199,9 @@ Para información específica y detallada, consulta los README en cada directori
 
 El archivo [Guia.sh](Guia.sh) contiene todos los comandos paso a paso para:
 - ✅ Instalar Docker, kubectl y Azure CLI
+- ✅ Crear y configurar Azure Container Registry (ACR)
 - ✅ Subir imágenes a Azure Container Registry (ACR)
-- ✅ Conectar ACR con AKS
+- ✅ Conectar ACR con AKS automáticamente
 - ✅ Configurar secretos de Kubernetes
 - ✅ Desplegar y monitorear aplicaciones
 - ✅ Pruebas de API
@@ -181,18 +221,27 @@ cat Guia.sh
 - **Resource Group**: `rg-cloud-lab`
 - **Región**: East US
 
+### Container Registry (ACR)
+- **Registry**: `acre08tcscloudlab.azurecr.io`
+- **SKU**: Basic (desarrollo) / Standard (producción)
+- **Admin User**: Habilitado
+- **Integración**: Automática con AKS (AcrPull role)
+- **Resource Group**: `rg-cloud-lab`
+
 ### Kubernetes (AKS)
 - **Cluster**: `aks-e08`
 - **CNI**: Azure Container Networking Interface
 - **RBAC**: Habilitado
 - **Workload Identity**: Habilitado
 - **Node Pool**: Standard_B2s (1 nodo inicial)
+- **ACR Integration**: Configurada automáticamente
 
 ### Aplicación
 - **Runtime**: Python 3.7+
 - **Framework**: Flask 2.3.0
 - **API Endpoint**: POST `/DevOps`
 - **Puerto**: 5000 (interno) → 80 (externo)
+- **Imagen**: Almacenada en ACR privado
 
 ---
 
@@ -208,6 +257,58 @@ export AZURE_TENANT_ID="<tu-tenant-id>"
 # Terraform
 export TF_VAR_location="eastus"
 export TF_VAR_resource_group_name="rg-cloud-lab"
+export TF_VAR_acr_name="<tu-acr-name-unico>"  # Solo letras y números
+```
+
+---
+
+## 🐳 Trabajar con ACR
+
+### Login al ACR
+```bash
+# Opción 1: Con Azure CLI (Recomendado)
+az acr login --name <tu-acr-name>
+
+# Opción 2: Con Docker y credenciales
+docker login <tu-acr-name>.azurecr.io
+```
+
+### Obtener Credenciales del ACR
+```bash
+# Usuario
+az acr credential show --name <tu-acr-name> --query username --output tsv
+
+# Contraseña
+az acr credential show --name <tu-acr-name> --query passwords[0].value --output tsv
+
+# O con Terraform outputs
+cd "4. ACR"
+terraform output -raw acr_admin_username
+terraform output -raw acr_admin_password
+```
+
+### Construir y Subir Imágenes
+```bash
+# Construir imagen
+docker build -t <tu-acr-name>.azurecr.io/flask-app:v1 .
+
+# Subir imagen
+docker push <tu-acr-name>.azurecr.io/flask-app:v1
+
+# Listar imágenes en ACR
+az acr repository list --name <tu-acr-name> --output table
+
+# Ver tags de una imagen
+az acr repository show-tags --name <tu-acr-name> --repository flask-app --output table
+```
+
+### Verificar Integración ACR-AKS
+```bash
+# Verificar que AKS puede acceder al ACR
+az aks check-acr \
+  --name aks-e08 \
+  --resource-group rg-cloud-lab \
+  --acr <tu-acr-name>.azurecr.io
 ```
 
 ---
@@ -215,8 +316,8 @@ export TF_VAR_resource_group_name="rg-cloud-lab"
 ## 📞 Soporte y Contacto
 
 - **Autor**: Erick Iza
-- **Email**: erick.iza@tcs-ecu.com
-- **Versión**: 1.0.0
+- **Email**: eizaacos@pichincha.com
+- **Versión**: 1.1.0
 - **Fecha**: Febrero 2026
 
 ---
@@ -231,6 +332,7 @@ Este proyecto está licenciado bajo la **Licencia MIT**. Consulta el archivo `LI
 
 - [Documentación de Terraform](https://www.terraform.io/docs)
 - [Documentación de Azure AKS](https://docs.microsoft.com/en-us/azure/aks/)
+- [Documentación de Azure ACR](https://docs.microsoft.com/en-us/azure/container-registry/)
 - [Documentación de Kubernetes](https://kubernetes.io/docs)
 - [Documentación de Azure CLI](https://docs.microsoft.com/en-us/cli/azure/)
 - [Docker Documentation](https://docs.docker.com)
@@ -246,6 +348,9 @@ Para verificar que todo está correctamente configurado:
 # Verificar autenticación
 az account show
 
+# Verificar ACR
+az acr show --name <tu-acr-name> --output table
+
 # Verificar conexión a Kubernetes
 kubectl cluster-info
 
@@ -254,13 +359,16 @@ kubectl get all
 kubectl get nodes
 kubectl get pods
 
-# Verificar terrraform
+# Verificar terraform
 terraform version
+
+# Verificar imágenes en ACR
+az acr repository list --name <tu-acr-name> --output table
 ```
 
 ---
 
-**Última Actualización**: Febrero 25, 2026
+**Última Actualización**: Febrero 26, 2026
 
 ---
 
